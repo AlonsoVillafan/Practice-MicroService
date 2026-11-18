@@ -1,0 +1,53 @@
+server:
+  # Gateway es el punto público de nuestra API.
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Issuer que debe contener el JWT.
+          #
+          # Localmente será localhost:9090.
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:9090/realms/reto-api}
+
+          # Dirección desde donde Spring obtiene
+          # las claves públicas para validar el JWT.
+          #
+          # En local también usamos localhost.
+          # En Docker utilizaremos keycloak:8080.
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:9090/realms/reto-api/protocol/openid-connect/certs}
+
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+
+            # =============================
+            # ORDER SERVICE
+            # =============================
+            - id: order-service
+
+              # Localmente: localhost:8081
+              # Docker: order-service:8081
+              uri: ${ORDER_SERVICE_URL:http://localhost:8081}
+
+              predicates:
+                - Path=/api/orders/**
+
+            # =============================
+            # INVENTORY SERVICE
+            # =============================
+            - id: inventory-service
+
+              # Localmente: localhost:8082
+              # Docker: inventory-service:8082
+              uri: ${INVENTORY_SERVICE_URL:http://localhost:8082}
+
+              predicates:
+                - Path=/api/inventory/**

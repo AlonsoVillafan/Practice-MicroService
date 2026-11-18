@@ -1,0 +1,224 @@
+services:
+
+  # =====================================================
+  # MYSQL - INVENTORY
+  # =====================================================
+  mysql-inventory:
+
+    image: mysql:8.0
+
+    environment:
+
+      # Contraseña de root.
+      MYSQL_ROOT_PASSWORD: root
+
+      # Base creada automáticamente.
+      MYSQL_DATABASE: inventory_db
+
+    # Verificamos que MySQL realmente esté listo.
+    healthcheck:
+      test:
+        ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+    # Los productos permanecen aunque
+    # apaguemos los contenedores.
+    volumes:
+      - inventory-data:/var/lib/mysql
+
+
+  # =====================================================
+  # MYSQL - ORDERS
+  # =====================================================
+  mysql-orders:
+
+    image: mysql:8.0
+
+    environment:
+
+      MYSQL_ROOT_PASSWORD: root
+
+      MYSQL_DATABASE: orders_db
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-proot"
+        ]
+
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+    volumes:
+      - orders-data:/var/lib/mysql
+
+
+  # =====================================================
+  # INVENTORY SERVICE
+  # =====================================================
+  inventory-service:
+
+    # Docker utilizará:
+    #
+    # inventory-service/Dockerfile
+    build:
+      context: ./inventory-service
+
+    environment:
+
+      # Dentro de Docker NO usamos localhost.
+      #
+      # "mysql-inventory" es el nombre
+      # del servicio definido arriba.
+      INVENTORY_DB_URL: r2dbc:mysql://mysql-inventory:3306/inventory_db
+
+      INVENTORY_DB_USERNAME: root
+      INVENTORY_DB_PASSWORD: root
+
+    # No iniciamos Inventory hasta que
+    # MySQL esté realmente disponible.
+    depends_on:
+
+      mysql-inventory:
+        condition: service_healthy
+
+    # Disponible para otros contenedores,
+    # pero NO directamente para Postman.
+    expose:
+      - "8082"
+
+
+  # =====================================================
+  # ORDER SERVICE
+  # =====================================================
+  order-service:
+
+    build:
+      context: ./order-service
+
+    environment:
+
+      # Base de datos propia de Order.
+      ORDER_DB_URL: r2dbc:mysql://mysql-orders:3306/orders_db
+
+      ORDER_DB_USERNAME: root
+      ORDER_DB_PASSWORD: root
+
+      # Order encuentra Inventory mediante
+      # el DNS interno de Docker.
+      INVENTORY_SERVICE_URL: http://inventory-service:8082
+
+    depends_on:
+
+      mysql-orders:
+        condition: service_healthy
+
+      inventory-service:
+        condition: service_started
+
+    # Tampoco lo exponemos hacia Windows/Postman.
+    expose:
+      - "8081"
+
+
+  # =====================================================
+  # KEYCLOAK
+  # =====================================================
+  keycloak:
+
+    image: quay.io/keycloak/keycloak:26.8.0
+
+    # Desarrollo + importación automática
+    # de nuestro Realm.
+    command:
+      - start-dev
+      - --import-realm
+
+    environment:
+
+      # Administrador para entrar a Keycloak.
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+
+      # Hace que el issuer que aparece
+      # dentro de los JWT sea:
+      #
+      # http://localhost:9090/realms/reto-api
+      KC_HOSTNAME: http://localhost:9090
+
+    volumes:
+
+      # Keycloak importará automáticamente
+      # nuestro Realm y Client.
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+
+    # Keycloak debe ser accesible desde Postman
+    # para obtener el token.
+    ports:
+      - "9090:8080"
+
+
+  # =====================================================
+  # API GATEWAY
+  # =====================================================
+  gateway-service:
+
+    build:
+      context: ./gateway-service
+
+    environment:
+
+      # Dentro de Docker el Gateway NO llama
+      # localhost:8081.
+      #
+      # Llama al nombre del contenedor.
+      ORDER_SERVICE_URL: http://order-service:8081
+
+      INVENTORY_SERVICE_URL: http://inventory-service:8082
+
+
+      # Este valor se utiliza para validar
+      # el claim "iss" del JWT.
+      KEYCLOAK_ISSUER_URI: http://localhost:9090/realms/reto-api
+
+
+      # Para obtener las claves públicas,
+      # Gateway sí utiliza la comunicación
+      # interna Docker → Keycloak.
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/reto-api/protocol/openid-connect/certs
+
+    depends_on:
+
+      order-service:
+        condition: service_started
+
+      inventory-service:
+        condition: service_started
+
+      keycloak:
+        condition: service_started
+
+
+    # =================================================
+    # ÚNICO PUNTO PÚBLICO DE NUESTRA API
+    # =================================================
+    ports:
+      - "8080:8080"
+
+
+# =====================================================
+# VOLUMES
+# =====================================================
+volumes:
+
+  inventory-data:
+
+  orders-data:

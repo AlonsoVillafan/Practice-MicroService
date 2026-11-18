@@ -1,0 +1,31 @@
+server:
+  # Puerto interno de Order Service.
+  port: 8081
+
+spring:
+  application:
+    name: order-service
+
+  r2dbc:
+    # Localmente continúa usando el MySQL
+    # publicado en el puerto 3307.
+    #
+    # Docker reemplazará ORDER_DB_URL.
+    url: ${ORDER_DB_URL:r2dbc:mysql://localhost:3307/orders_db}
+
+    username: ${ORDER_DB_USERNAME:root}
+    password: ${ORDER_DB_PASSWORD:root}
+
+  sql:
+    init:
+      mode: always
+
+services:
+  inventory:
+
+    # Localmente:
+    # localhost:8082
+    #
+    # Docker:
+    # inventory-service:8082
+    base-url: ${INVENTORY_SERVICE_URL:http://localhost:8082}

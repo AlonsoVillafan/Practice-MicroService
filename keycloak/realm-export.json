@@ -1,0 +1,27 @@
+{
+  "realm": "reto-api",
+  "enabled": true,
+
+  "clients": [
+    {
+      "clientId": "reto-api-client",
+      "name": "Reto API Client",
+
+      "enabled": true,
+
+      "protocol": "openid-connect",
+
+      "publicClient": false,
+
+      "clientAuthenticatorType": "client-secret",
+
+      "secret": "reto-api-secret",
+
+      "serviceAccountsEnabled": true,
+
+      "standardFlowEnabled": false,
+
+      "directAccessGrantsEnabled": false
+    }
+  ]
+}

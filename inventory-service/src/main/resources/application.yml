@@ -1,0 +1,21 @@
+server:
+  # Puerto interno de Inventory Service.
+  port: 8082
+
+spring:
+  application:
+    name: inventory-service
+
+  r2dbc:
+    # Si ejecutamos desde IntelliJ usa localhost.
+    # Docker Compose enviará INVENTORY_DB_URL
+    # y reemplazará este valor.
+    url: ${INVENTORY_DB_URL:r2dbc:mysql://localhost:3306/inventory_db}
+
+    username: ${INVENTORY_DB_USERNAME:root}
+    password: ${INVENTORY_DB_PASSWORD:root}
+
+  sql:
+    init:
+      # Ejecuta schema.sql y data.sql.
+      mode: always
